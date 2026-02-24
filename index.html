@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TURTLE PORTAL 7.0 - ROUNDS</title>
+    <style>
+        body { background: #0f0f1a; color: #00fff2; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; overflow: hidden; touch-action: none; }
+        
+        .device-selector { background: #ffcc00; color: #000; padding: 10px; font-weight: bold; display: flex; justify-content: center; gap: 15px; border-bottom: 2px solid #000; }
+        .mode-btn { background: #000; color: #ffcc00; border: 1px solid #000; padding: 5px 10px; cursor: pointer; border-radius: 4px; }
+        .mode-btn.active { background: #fff; color: #000; }
+
+        .menu-bar { background: #1a1a2e; padding: 10px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+        button { background: transparent; color: #00fff2; border: 2px solid #00fff2; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #00fff2; color: #000; }
+
+        #container { margin: 10px auto; width: 95vw; max-width: 600px; height: 450px; border: 3px solid #00fff2; border-radius: 10px; position: relative; overflow: hidden; background: #000; }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* Õ¿ƒœ»—‹ –¿”Õƒ¿ */
+        #round-notif { 
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 50px; font-weight: bold; color: #ffcc00; text-shadow: 0 0 20px #ffcc00;
+            display: none; pointer-events: none; z-index: 50;
+        }
+
+        #upgrade-menu { position: absolute; top: 50px; left: 50%; transform: translateX(-50%); width: 260px; background: rgba(0,0,0,0.95); border: 2px solid #ffcc00; display: none; padding: 15px; border-radius: 10px; z-index: 100; }
+        .upg-btn { width: 100%; margin: 8px 0; background: #333; color: white; padding: 10px; border: 1px solid #ffcc00; cursor: pointer; }
+        .upg-btn:disabled { opacity: 0.3; }
+
+        #mobile-controls { display: none; position: absolute; bottom: 10px; width: 100%; justify-content: space-between; padding: 0 20px; box-sizing: border-box; pointer-events: none; }
+        .m-btn { width: 60px; height: 60px; background: rgba(255,255,255,0.2); border-radius: 50%; pointer-events: auto; border: 2px solid #00fff2; color: white; }
+        
+        #click-ui { display: none; padding-top: 150px; }
+    </style>
+</head>
+<body>
+
+<div class="device-selector">
+    <span>–≈∆»Ã:</span>
+    <button id="pc-btn" class="mode-btn active" onclick="setMode('pc')">œ </button>
+    <button id="mob-btn" class="mode-btn" onclick="setMode('mobile')">ÃŒ¡»À ¿</button>
+</div>
+
+<div class="menu-bar">
+    <button onclick="initSnake()">SNAKE</button>
+    <button onclick="initRace()">RACE</button>
+    <button onclick="initClicker()">CLICKER</button>
+    <button onclick="initBrawl()">ZOMBIE RPG</button>
+</div>
+
+<div id="container">
+    <div id="round-notif">ROUND 1</div>
+    <div id="upgrade-menu">
+        <h3 style="color:#ffcc00">LEVEL UP!</h3>
+        <button id="upg-dmg" class="upg-btn" onclick="applyUpg('dmg')">DAMAGE</button>
+        <button id="upg-spd" class="upg-btn" onclick="applyUpg('spd')">FIRE RATE</button>
+        <button id="upg-prc" class="upg-btn" onclick="applyUpg('prc')">PIERCE</button>
+    </div>
+    <canvas id="gameCanvas" width="600" height="450"></canvas>
+    
+    <div id="click-ui">
+        <button onclick="doClick()" style="width:100px; height:100px; border-radius:50%; background:#ffcc00;">TAP</button>
+        <h2 id="c-count">0</h2>
+    </div>
+
+    <div id="mobile-controls">
+        <div style="display:grid; grid-template-columns: repeat(3, 50px); gap:5px; pointer-events:auto;">
+            <button class="m-btn" style="grid-column:2" ontouchstart="keys['KeyW']=true" ontouchend="keys['KeyW']=false">W</button>
+            <button class="m-btn" style="grid-row:2; grid-column:1" ontouchstart="keys['KeyA']=true" ontouchend="keys['KeyA']=false">A</button>
+            <button class="m-btn" style="grid-row:2; grid-column:2" ontouchstart="keys['KeyS']=true" ontouchend="keys['KeyS']=false">S</button>
+            <button class="m-btn" style="grid-row:2; grid-column:3" ontouchstart="keys['KeyD']=true" ontouchend="keys['KeyD']=false">D</button>
+        </div>
+        <button class="m-btn" style="background:red; width:80px; height:80px;" ontouchstart="shoot()">FIRE</button>
+    </div>
+</div>
+
+<div id="status">CHOOSE A GAME</div>
+
+<script>
+    let currentMode = 'pc';
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const upgMenu = document.getElementById('upgrade-menu');
+    const mobileUI = document.getElementById('mobile-controls');
+    const roundNotif = document.getElementById('round-notif');
+    const clickUI = document.getElementById('click-ui');
+    let loop, keys = {}, mouseX = 0, mouseY = 0;
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.getElementById('pc-btn').classList.toggle('active', mode === 'pc');
+        document.getElementById('mob-btn').classList.toggle('active', mode === 'mobile');
+    }
+
+    function reset() { 
+        clearInterval(loop); 
+        ctx.setTransform(1,0,0,1,0,0); 
+        upgMenu.style.display = 'none'; 
+        clickUI.style.display = 'none';
+        canvas.style.display = 'none';
+        mobileUI.style.display = 'none';
+        window.onkeydown=null; canvas.onmousedown=null; 
+    }
+
+    // --- ZOMBIE RPG ---
+    let stats={dmg:1,fr:600,prc:1,lD:0,lS:0,lP:0}, xp=0, nxt=100, pLvl=1, isP=false;
+    let plr, bullets=[], enemies=[], gems=[], wave=0, lastS=0;
+
+    function initBrawl() {
+        reset(); canvas.style.display='block'; isP=false;
+        if(currentMode=='mobile') mobileUI.style.display='flex';
+        plr={x:600,y:600,s:4,angle:0}; bullets=[]; enemies=[]; gems=[];
+        stats={dmg:1,fr:600,prc:1,lD:0,lS:0,lP:0}; xp=0; nxt=100; pLvl=1; wave=0;
+        nextWave();
+        window.onkeydown=(e)=>keys[e.code]=true; window.onkeyup=(e)=>keys[e.code]=false;
+        canvas.onmousemove=(e)=>{ const r=canvas.getBoundingClientRect(); mouseX=(e.clientX-r.left)*(600/r.width); mouseY=(e.clientY-r.top)*(450/r.height); };
+        canvas.onmousedown=()=> { if(currentMode=='pc') shoot(); };
+        loop=setInterval(updateBrawl, 30);
+    }
+
+    function nextWave() {
+        wave++;
+        roundNotif.innerText = "ROUND " + wave;
+        roundNotif.style.display = 'block';
+        setTimeout(() => { roundNotif.style.display = 'none'; }, 2000);
+        
+        let count = 1 + wave;
+        for(let i=0; i<count; i++) {
+            let a = Math.random()*Math.PI*2;
+            enemies.push({ x: plr.x+Math.cos(a)*400, y: plr.y+Math.sin(a)*400, hp: 1+Math.floor(wave/3), spd: 1.1 });
+        }
+    }
+
+    function shoot() {
+        if(isP) return; let n=Date.now();
+        if(n-lastS > stats.fr) {
+            let a = (currentMode=='pc') ? Math.atan2(mouseY-225, mouseX-300) : plr.angle;
+            bullets.push({x:plr.x, y:plr.y, vx:Math.cos(a)*10, vy:Math.sin(a)*10, p:stats.prc});
+            lastS=n;
+        }
+    }
+
+    function updateBrawl() {
+        if(isP) return;
+        if(keys['KeyW']) plr.y-=plr.s; if(keys['KeyS']) plr.y+=plr.s;
+        if(keys['KeyA']) plr.x-=plr.s; if(keys['KeyD']) plr.x+=plr.s;
+        
+        if(currentMode=='pc') plr.angle = Math.atan2(mouseY-225, mouseX-300);
+        else if(keys['KeyW']||keys['KeyS']||keys['KeyA']||keys['KeyD']) {
+            if(keys['KeyW']) plr.angle = -Math.PI/2; if(keys['KeyS']) plr.angle = Math.PI/2;
+            if(keys['KeyA']) plr.angle = Math.PI; if(keys['KeyD']) plr.angle = 0;
+        }
+
+        let camX=plr.x-300, camY=plr.y-225;
+        ctx.setTransform(1,0,0,1,-camX,-camY);
+        ctx.fillStyle='#111'; ctx.fillRect(camX,camY,600,450);
+
+        gems.forEach((g,i)=>{
+            ctx.fillStyle='#00fff2'; ctx.beginPath(); ctx.arc(g.x,g.y,5,0,Math.PI*2); ctx.fill();
+            if(Math.hypot(plr.x-g.x, plr.y-g.y)<30){ gems.splice(i,1); xp+=40; if(xp>=nxt) levelUp(); }
+        });
+
+        bullets.forEach((b,bi)=>{
+            b.x+=b.vx; b.y+=b.vy; ctx.fillStyle='yellow'; ctx.fillRect(b.x,b.y,5,5);
+            enemies.forEach((en,ei)=>{
+                if(Math.hypot(b.x-en.x,b.y-en.y)<20){
+                    en.hp-=stats.dmg; if(en.hp<=0){gems.push({x:en.x,y:en.y}); enemies.splice(ei,1);}
+                    b.p--; if(b.p<=0) bullets.splice(bi,1);
+                }
+            });
+        });
+
+        enemies.forEach((en,i)=>{
+            let a=Math.atan2(plr.y-en.y, plr.x-en.x); en.x+=Math.cos(a)*en.spd; en.y+=Math.sin(a)*en.spd;
+            ctx.fillStyle='#4a7c44'; ctx.fillRect(en.x-15, en.y-15, 30, 30);
+            if(Math.hypot(plr.x-en.x,plr.y-en.y)<28){ alert("GAME OVER! ROUND: "+wave); initBrawl(); }
+        });
+
+        if(enemies.length === 0) nextWave();
+
+        ctx.save(); ctx.translate(plr.x,plr.y); ctx.rotate(plr.angle);
+        ctx.fillStyle='#00ff00'; ctx.fillRect(-15,-15,30,30);
+        ctx.fillStyle='white'; ctx.fillRect(10,-3,8,6); ctx.restore();
+
+        ctx.setTransform(1,0,0,1,0,0);
+        ctx.fillStyle='#333'; ctx.fillRect(10,435,580,10);
+        ctx.fillStyle='#00fff2'; ctx.fillRect(10,435,(xp/nxt)*580,10);
+        document.getElementById('status').innerText = "WAVE: "+wave+" | LVL: "+pLvl;
+    }
+
+    function levelUp() { isP=true; upgMenu.style.display='block';
+        document.getElementById('upg-dmg').innerText=`DMG (${stats.lD})`;
+        document.getElementById('upg-spd').innerText=`RATE (${stats.lS})`;
+        document.getElementById('upg-prc').innerText=`PIERCE (${stats.lP})`;
+        document.getElementById('upg-dmg').disabled=stats.lD>=7;
+        document.getElementById('upg-spd').disabled=stats.lS>=7;
+        document.getElementById('upg-prc').disabled=stats.lP>=7;
+    }
+
+    function applyUpg(t) {
+        if(t=='dmg'){stats.dmg++; stats.lD++;} if(t=='spd'){stats.fr-=80; stats.lS++;} if(t=='prc'){stats.prc++; stats.lP++;}
+        xp-=nxt; pLvl++; nxt=Math.floor(nxt*1.5); upgMenu.style.display='none'; isP=false;
+    }
+
+    // --- OTHER GAMES ---
+    function initSnake() { 
+        reset(); canvas.style.display='block'; let s=[{x:10,y:10}], f={x:5,y:5}, d={x:1,y:0};
+        window.onkeydown=(e)=>{if(e.key=='ArrowUp'&&d.y==0)d={x:0,y:-1};if(e.key=='ArrowDown'&&d.y==0)d={x:0,y:1};if(e.key=='ArrowLeft'&&d.x==0)d={x:-1,y:0};if(e.key=='ArrowRight'&&d.x==0)d={x:1,y:0};};
+        loop=setInterval(()=>{
+            let h={x:s[0].x+d.x, y:s[0].y+d.y};
+            if(h.x<0||h.x>=30||h.y<0||h.y>=22||s.some(p=>p.x==h.x&&p.y==h.y)) return initSnake();
+            s.unshift(h); if(h.x==f.x&&h.y==f.y)f={x:Math.floor(Math.random()*30),y:Math.floor(Math.random()*22)};else s.pop();
+            ctx.fillStyle='#000'; ctx.fillRect(0,0,600,450); ctx.fillStyle='red'; ctx.fillRect(f.x*20,f.y*20,18,18);
+            ctx.fillStyle='#00fff2'; s.forEach(p=>ctx.fillRect(p.x*20,p.y*20,18,18));
+        },100);
+    }
+
+    function initRace() { 
+        reset(); canvas.style.display='block'; let x=280, ex=50, ey=-50, sc=0;
+        window.onkeydown=(e)=>{if(e.key=='ArrowLeft'&&x>0)x-=20;if(e.key=='ArrowRight'&&x<560)x+=20;};
+        loop=setInterval(()=>{
+            ey+=10; if(ey>450){ey=-50; ex=Math.random()*560; sc++;}
+            if(ey>400&&ey<440&&ex<x+40&&ex+40>x){alert("Score: "+sc); initRace();}
+            ctx.fillStyle='#111'; ctx.fillRect(0,0,600,450); ctx.fillStyle='#00fff2'; ctx.fillRect(x,400,40,40);
+            ctx.fillStyle='red'; ctx.fillRect(ex,ey,40,40); document.getElementById('status').innerText="Score: "+sc;
+        },30);
+    }
+
+    let c=0; function initClicker() { reset(); clickUI.style.display='block'; }
+    function doClick() { c++; document.getElementById('c-count').innerText=c; }
+</script>
+</body>
+</html>
